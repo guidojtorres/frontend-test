@@ -1,0 +1,9 @@
+.cardAnimation {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  transform: scale(1.05);
+}
+
+.cardAnimation:hover {
+  transform: scale(1.12);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+}

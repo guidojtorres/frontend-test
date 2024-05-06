@@ -1,57 +1,68 @@
 import Head from "next/head";
-
+import { Suspense, useCallback, useContext, useEffect, useState } from "react";
 import { Inter, Island_Moments } from "next/font/google";
-import styles from "@/styles/Home.module.css";
-import axios from "axios";
 const inter = Inter({ subsets: ["latin"] });
-import { useEffect, useState } from "react";
 import {
   Container,
   Stack,
   Input,
-  Button,
   SimpleGrid,
   Flex,
   Box,
-  Modal,
-  ModalOverlay,
-  ModalHeader,
-  ModalBody,
-  ModalContent,
-  ModalCloseButton,
   useDisclosure,
+  Center,
+  Heading,
+  VStack,
+  InputGroup,
+  InputRightElement,
+  Checkbox,
 } from "@chakra-ui/react";
+import { SearchIcon } from "@chakra-ui/icons";
 import PokemonCard from "@/components/PokemonCard";
-import PokemonData from "@/components/PokemonData";
+import { loadPokemonList } from "@/utils/functions";
+import { CaughtPokemonContext } from "@/context";
+import PokemonDataModal from "@/components/PokemonDataModal";
+import ViewMore from "@/components/ViewMore";
 
-export default function Home() {
+export async function getStaticProps() {
+  const pokemonList = await loadPokemonList(0);
+  return { props: { pokemonList } };
+}
+
+export default function Home({ pokemonList }) {
   const pokemonDataModal = useDisclosure();
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [pokemon, setPokemon] = useState([]);
+  const [pokemon, setPokemon] = useState(pokemonList);
   const [selectedPokemon, setSelectedPokemon] = useState();
-  const [currentPage, setCurrentPage] = useState(
-    "https://pokeapi.co/api/v2/pokemon/?limit=20&offset=0"
-  );
+  const [searchedPokemon, setSearchedPokemon] = useState("");
+  const [showCaught, setShowCaught] = useState(false);
+  const { caughtPokemon } = useContext(CaughtPokemonContext);
 
-  useEffect(() => {
-    setIsLoading(true);
-    axios.get(currentPage).then(async ({ data }) => {
-      const promises = data.results.map((result) => axios(result.url));
-      const fetchedPokemon = (await Promise.all(promises)).map(
-        (res) => res.data
-      );
-      setPokemon((prev) => [...prev, ...fetchedPokemon]);
-      setIsLoading(false);
-    });
-  }, [currentPage]);
-
-  function handleNextPage() {}
-
-  function handleViewPokemon(pokemon) {
+  const handleViewPokemon = useCallback(async (pokemon) => {
     setSelectedPokemon(pokemon);
+
     pokemonDataModal.onOpen();
-  }
+  }, []);
+
+  const handleSearch = useCallback((e) => {
+    setSearchedPokemon(e.target.value);
+  }, []);
+
+  const handleAddPokemon = useCallback((pokemonArray) => {
+    setPokemon(pokemonArray);
+  }, []);
+
+  const filteredPokemon = pokemon.filter((pokemon) => {
+    const loweredSearchTerm = searchedPokemon.toLowerCase();
+    const loweredName = pokemon.name.toLowerCase();
+    if (showCaught) {
+      return (
+        caughtPokemon.some((poke) => poke.id === pokemon.id) &&
+        loweredName &&
+        loweredName.includes(loweredSearchTerm)
+      );
+    }
+    return loweredName && loweredName.includes(loweredSearchTerm);
+  });
 
   return (
     <>
@@ -61,11 +72,31 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <Flex alignItems="center" minH="100vh" justifyContent="center">
+      <Center my={5}>
+        <Container>
+          <VStack alignItems={"center"}>
+            <Heading>Pokemon List!</Heading>
+            <InputGroup>
+              <Input
+                placeholder="Search your pokemon..."
+                width={"100%"}
+                onChange={handleSearch}
+              />
+              <InputRightElement>
+                <SearchIcon />
+              </InputRightElement>
+            </InputGroup>
+            <Checkbox onChange={() => setShowCaught(!showCaught)}>
+              Show caught
+            </Checkbox>
+          </VStack>
+        </Container>
+      </Center>
+      <Flex minH="100vh" justifyContent="center">
         <Container maxW="container.lg">
           <Stack p="5" alignItems="center" spacing="5">
-            <SimpleGrid spacing="5" columns={{ base: 1, md: 5 }}>
-              {pokemon.map((pokemon) => (
+            <SimpleGrid spacing="5" columns={{ base: 1, md: 5 }} w="100%">
+              {filteredPokemon.map((pokemon) => (
                 <Box
                   as="button"
                   key={pokemon.id}
@@ -75,25 +106,14 @@ export default function Home() {
                 </Box>
               ))}
             </SimpleGrid>
-
-            <Button isLoading={false} onClick={handleNextPage}>
-              Cargas más
-            </Button>
+            <ViewMore updatePokemon={handleAddPokemon} />
           </Stack>
         </Container>
       </Flex>
-      <Modal {...pokemonDataModal}>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader textTransform="capitalize">
-            {selectedPokemon?.name}
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            {selectedPokemon && <PokemonData pokemon={selectedPokemon} />}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+      <PokemonDataModal
+        selectedPokemon={selectedPokemon}
+        pokemonDataModal={pokemonDataModal}
+      />
     </>
   );
 }
